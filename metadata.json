@@ -1,0 +1,6 @@
+{
+  "name": "Refunds Analytics Dashboard",
+  "description": "Professional dynamic dashboard for tracking Defaulting and Requested refunds with CS performance analytics, financial trends, and automated export tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
