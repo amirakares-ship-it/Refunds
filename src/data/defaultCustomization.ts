@@ -1,8 +1,8 @@
 import { DashboardCustomization } from '../types';
 
 export const defaultCustomization: DashboardCustomization = {
-  theme: 'slate-dark',
-  isLightMode: false,
+  theme: 'clean-light',
+  isLightMode: true,
   accentColor: 'blue',
   fontSize: 'md',
   headerTitle: 'Membership Refunds 2026',
@@ -10,12 +10,12 @@ export const defaultCustomization: DashboardCustomization = {
   headerTitleColor: '#ffffff',
   headerSubtitleColor: '#e2e8f0',
   headerTitleSize: 'xl',
-  kpiTitleColor: '#94a3b8',
-  kpiValueColor: '#ffffff',
+  kpiTitleColor: '#475569',
+  kpiValueColor: '',
   kpiValueSize: '2xl',
-  chartTitleColor: '#f1f5f9',
+  chartTitleColor: '#0f172a',
   chartTitleSize: 'md',
-  bodyTextColor: '#cbd5e1',
+  bodyTextColor: '#334155',
   kpiConfigs: {
     kpi_default: {
       id: 'kpi_default',

@@ -29,8 +29,10 @@ import { Header } from './components/Header';
 import { KpiCards } from './components/KpiCards';
 import { ManualInputModal } from './components/ManualInputModal';
 import { FileUploadModal } from './components/FileUploadModal';
+import { SqliteManagerModal } from './components/SqliteManagerModal';
 import { PdfExportModal } from './components/PdfExportModal';
 import { ChartModal } from './components/ChartModal';
+import { getActiveRecordsFromSqlite } from './utils/sqliteStore';
 
 import { CSWorkSection } from './components/charts/CSWorkSection';
 import { FundsSection } from './components/charts/FundsSection';
@@ -50,6 +52,17 @@ export default function App() {
   // Main Dataset State (initialized from localStorage if present, or raw csv)
   const [records, setRecords] = useState<RefundRecord[]>(() => getInitialRecords());
 
+  // Automatically sync with SQLite persistent database on load
+  useEffect(() => {
+    getActiveRecordsFromSqlite().then(({ records: sqliteRecords }) => {
+      if (sqliteRecords && sqliteRecords.length > 0) {
+        setRecords(sqliteRecords);
+      }
+    }).catch(err => {
+      console.error('Error initializing active records from SQLite:', err);
+    });
+  }, []);
+
   // Save records to localStorage on update
   useEffect(() => {
     saveRecordsToStorage(records);
@@ -58,7 +71,7 @@ export default function App() {
   // Customization State for full control admin panel (persisted)
   const [customization, setCustomization] = useState<DashboardCustomization>(() => {
     try {
-      const saved = localStorage.getItem('dashboard_customization_v3');
+      const saved = localStorage.getItem('dashboard_customization_v5');
       if (saved) {
         const parsed = JSON.parse(saved);
         // Ensure removed charts are filtered out from All Refunds
@@ -100,7 +113,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('dashboard_customization_v3', JSON.stringify(customization));
+      localStorage.setItem('dashboard_customization_v5', JSON.stringify(customization));
     } catch (e) {
       console.error('Error saving customization to localStorage', e);
     }
@@ -143,6 +156,7 @@ export default function App() {
   // UI Modals State
   const [isManualInputOpen, setIsManualInputOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isSqliteOpen, setIsSqliteOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isPresentationMode, setIsPresentationMode] = useState(true);
 
@@ -479,6 +493,7 @@ export default function App() {
         customization={customization}
         setCustomization={setCustomization}
         onOpenUpload={() => setIsUploadOpen(true)}
+        onOpenSqliteManager={() => setIsSqliteOpen(true)}
         onOpenPdfModal={() => setIsPdfModalOpen(true)}
         onExportPpt={() => handleExportAllPpt()}
         onOpenManualInputs={() => setIsManualInputOpen(true)}
@@ -606,10 +621,23 @@ export default function App() {
       <FileUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
+        onOpenSqliteManager={() => setIsSqliteOpen(true)}
         onDatasetUpdate={(newRecords) => {
           saveBaselineRecords(newRecords);
           setRecords(newRecords);
         }}
+      />
+
+      {/* SQLite Database & Sheets Manager Modal */}
+      <SqliteManagerModal
+        isOpen={isSqliteOpen}
+        onClose={() => setIsSqliteOpen(false)}
+        currentRecords={records}
+        onDatasetChange={(newRecords) => {
+          saveBaselineRecords(newRecords);
+          setRecords(newRecords);
+        }}
+        isLight={isLight}
       />
 
       {/* PDF & PPT Export Modal */}
@@ -628,9 +656,9 @@ export default function App() {
       <div
         id="pdf-export-offscreen-container"
         style={{
-          position: 'absolute',
+          position: 'fixed',
           top: '0',
-          left: '0',
+          left: '-99999px',
           width: '1280px',
           opacity: 0,
           pointerEvents: 'none',

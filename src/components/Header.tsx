@@ -15,7 +15,8 @@ import {
   RotateCcw,
   X,
   Check,
-  Loader2
+  Loader2,
+  Database
 } from 'lucide-react';
 import { DashboardFilters, DashboardCustomization } from '../types';
 import { parseMonthAndYear } from '../utils/dataProcessor';
@@ -28,6 +29,7 @@ interface HeaderProps {
   customization: DashboardCustomization;
   setCustomization: React.Dispatch<React.SetStateAction<DashboardCustomization>>;
   onOpenUpload: () => void;
+  onOpenSqliteManager: () => void;
   onOpenPdfModal: () => void;
   onExportPpt: () => void;
   onOpenManualInputs: () => void;
@@ -45,6 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   customization,
   setCustomization,
   onOpenUpload,
+  onOpenSqliteManager,
   onOpenPdfModal,
   onExportPpt,
   onOpenManualInputs,
@@ -372,10 +375,20 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     onClick={onOpenUpload}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
-                    title="رفع شيت إكسيل أو CSV محدث (Upload Sheet)"
+                    title="رفع شيت إكسيل أو CSV وحفظه في قاعدة بيانات SQLite"
                   >
                     <Upload className="w-3.5 h-3.5 text-blue-400" />
                     <span className="hidden md:inline">Upload</span>
+                  </button>
+
+                  {/* SQLite Database & Sheets Manager Trigger */}
+                  <button
+                    onClick={onOpenSqliteManager}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
+                    title="إدارة قاعدة بيانات SQLite والشيتات المحفوظة (SQLite Database & Sheets)"
+                  >
+                    <Database className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="hidden md:inline">SQLite DB</span>
                   </button>
 
                   {/* Direct PDF Export Modal Trigger */}
