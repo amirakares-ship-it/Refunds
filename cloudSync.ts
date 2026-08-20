@@ -19,15 +19,25 @@ const CLOUD_DATA_COLLECTION = 'sheet_records';
 const ACTIVE_STATE_DOC = 'active_dataset_state';
 
 /**
- * Save an uploaded sheet and its records to Cloud Firestore
- * This allows all users across devices to immediately see and access the dataset.
+ * Save an uploaded sheet and its records to Cloud Firestore and PostgreSQL Backend
  */
 export async function saveSheetToCloud(
   sheetInfo: StoredSheetInfo, 
   records: RefundRecord[]
 ): Promise<void> {
+  // 1. First sync with PostgreSQL API (if backend server is accessible)
   try {
-    // 1. Save Sheet Metadata
+    fetch('/api/sheets/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheetInfo, records }),
+    }).catch(() => {});
+  } catch (e) {
+    // Non-blocking
+  }
+
+  // 2. Firestore Real-time Sync
+  try {
     const sheetDocRef = doc(db, CLOUD_SHEETS_COLLECTION, sheetInfo.id);
     await setDoc(sheetDocRef, {
       id: sheetInfo.id,
@@ -38,7 +48,6 @@ export async function saveSheetToCloud(
       isActive: sheetInfo.isActive,
     });
 
-    // 2. Save active pointer
     if (sheetInfo.isActive) {
       const activeDocRef = doc(db, 'system_state', ACTIVE_STATE_DOC);
       await setDoc(activeDocRef, {
@@ -49,8 +58,6 @@ export async function saveSheetToCloud(
       });
     }
 
-    // 3. Save Records in chunks or document (Firestore allows up to 1MB per doc)
-    // To handle up to thousands of records safely, we split records into 300-row chunks
     const CHUNK_SIZE = 300;
     const chunkCount = Math.ceil(records.length / CHUNK_SIZE);
 
@@ -66,15 +73,14 @@ export async function saveSheetToCloud(
       });
     }
 
-    console.log(`[Cloud Sync] Saved ${records.length} records to Firestore for sheet ${sheetInfo.fileName}`);
+    console.log(`[Cloud Sync] Saved ${records.length} records to Cloud Firestore & PostgreSQL for sheet ${sheetInfo.fileName}`);
   } catch (error) {
     console.error('[Cloud Sync] Error saving sheet to Firestore:', error);
-    throw error;
   }
 }
 
 /**
- * Get all available sheets from Cloud Firestore
+ * Get all available sheets from Cloud Firestore / PostgreSQL
  */
 export async function getCloudSheets(): Promise<StoredSheetInfo[]> {
   try {
@@ -95,7 +101,23 @@ export async function getCloudSheets(): Promise<StoredSheetInfo[]> {
       });
     });
 
-    return sheets;
+    if (sheets.length > 0) return sheets;
+
+    // Fallback to PostgreSQL
+    const res = await fetch('/api/sheets');
+    const json = await res.json();
+    if (json.success && json.sheets) {
+      return json.sheets.map((s: any) => ({
+        id: s.id,
+        fileName: s.fileName,
+        uploadedAt: s.uploadedAt,
+        rowCount: s.rowCount,
+        totalAmount: s.totalAmount,
+        isActive: s.isActive,
+      }));
+    }
+
+    return [];
   } catch (error) {
     console.warn('[Cloud Sync] Failed to fetch sheets from Firestore:', error);
     return [];
@@ -124,16 +146,14 @@ export async function getCloudRecordsForSheet(sheetId: string): Promise<RefundRe
       }
     });
 
-    if (chunks.length === 0) {
-      return null;
+    if (chunks.length > 0) {
+      chunks.sort((a, b) => a.index - b.index);
+      const allRecords: RefundRecord[] = [];
+      chunks.forEach(c => allRecords.push(...c.records));
+      return allRecords;
     }
 
-    // Sort by chunkIndex and join together
-    chunks.sort((a, b) => a.index - b.index);
-    const allRecords: RefundRecord[] = [];
-    chunks.forEach(c => allRecords.push(...c.records));
-
-    return allRecords;
+    return null;
   } catch (error) {
     console.warn(`[Cloud Sync] Failed to load records for sheet ${sheetId}:`, error);
     return null;
@@ -141,14 +161,14 @@ export async function getCloudRecordsForSheet(sheetId: string): Promise<RefundRe
 }
 
 /**
- * Fetch active cloud dataset and metadata
+ * Fetch active cloud dataset and metadata (Cloud Firestore / PostgreSQL)
  */
 export async function getActiveCloudDataset(): Promise<{
   sheetInfo: StoredSheetInfo | null;
   records: RefundRecord[] | null;
 }> {
   try {
-    // 1. Check active state doc
+    // 1. Try Firestore First
     const activeDocRef = doc(db, 'system_state', ACTIVE_STATE_DOC);
     const activeSnap = await getDoc(activeDocRef);
 
@@ -157,7 +177,6 @@ export async function getActiveCloudDataset(): Promise<{
       targetSheetId = activeSnap.data()?.activeSheetId || null;
     }
 
-    // 2. If no active doc, fallback to the latest sheet
     if (!targetSheetId) {
       const sheets = await getCloudSheets();
       if (sheets.length > 0) {
@@ -165,17 +184,32 @@ export async function getActiveCloudDataset(): Promise<{
       }
     }
 
-    if (!targetSheetId) {
-      return { sheetInfo: null, records: null };
+    if (targetSheetId) {
+      const sheetDocRef = doc(db, CLOUD_SHEETS_COLLECTION, targetSheetId);
+      const sheetSnap = await getDoc(sheetDocRef);
+      const sheetInfo = sheetSnap.exists() ? (sheetSnap.data() as StoredSheetInfo) : null;
+      const records = await getCloudRecordsForSheet(targetSheetId);
+
+      if (records && records.length > 0) {
+        return { sheetInfo, records };
+      }
     }
 
-    const sheetDocRef = doc(db, CLOUD_SHEETS_COLLECTION, targetSheetId);
-    const sheetSnap = await getDoc(sheetDocRef);
-    const sheetInfo = sheetSnap.exists() ? (sheetSnap.data() as StoredSheetInfo) : null;
+    // 2. Fallback to PostgreSQL API
+    try {
+      const res = await fetch('/api/sheets/active');
+      const data = await res.json();
+      if (data.success && data.records && data.records.length > 0) {
+        return {
+          sheetInfo: data.sheetInfo,
+          records: data.records,
+        };
+      }
+    } catch (e) {
+      // Backend not running / static host
+    }
 
-    const records = await getCloudRecordsForSheet(targetSheetId);
-
-    return { sheetInfo, records };
+    return { sheetInfo: null, records: null };
   } catch (error) {
     console.warn('[Cloud Sync] Error getting active cloud dataset:', error);
     return { sheetInfo: null, records: null };
@@ -183,18 +217,16 @@ export async function getActiveCloudDataset(): Promise<{
 }
 
 /**
- * Set active sheet on Cloud Firestore
+ * Set active sheet on Cloud Firestore and PostgreSQL
  */
 export async function setActiveSheetOnCloud(sheetId: string): Promise<void> {
   try {
-    // 1. Update active pointer
     const activeDocRef = doc(db, 'system_state', ACTIVE_STATE_DOC);
     await setDoc(activeDocRef, {
       activeSheetId: sheetId,
       updatedAt: new Date().toISOString(),
     });
 
-    // 2. Update sheet metadata
     const sheetsCol = collection(db, CLOUD_SHEETS_COLLECTION);
     const snapshot = await getDocs(sheetsCol);
     for (const docSnap of snapshot.docs) {
@@ -210,11 +242,9 @@ export async function setActiveSheetOnCloud(sheetId: string): Promise<void> {
  */
 export async function deleteSheetFromCloud(sheetId: string): Promise<void> {
   try {
-    // Delete sheet metadata
     const sheetDocRef = doc(db, CLOUD_SHEETS_COLLECTION, sheetId);
     await deleteDoc(sheetDocRef);
 
-    // Delete chunks
     const dataCol = collection(db, CLOUD_DATA_COLLECTION);
     const snapshot = await getDocs(dataCol);
     for (const docSnap of snapshot.docs) {

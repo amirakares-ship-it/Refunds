@@ -4,36 +4,6 @@ import pptxgen from 'pptxgenjs';
 import { KpiSummary, formatEGP, formatEGPFull, formatMonthLabel } from './dataProcessor';
 
 /**
- * The 4 report pages live inside an off-screen container
- * (#pdf-export-offscreen-container) that is positioned with
- * `left: -99999px` and `opacity: 0` so it never shows up on screen.
- *
- * html2canvas renders a full clone of the document and then crops it
- * down to the target element, so BOTH of those styles break the
- * capture on the clone:
- *  - `opacity: 0` on an ancestor makes the whole cloned subtree
- *    composite to fully transparent, producing a blank image.
- *  - a large negative `left` pushes the element outside the area
- *    html2canvas actually renders, so the crop lands on empty space.
- *
- * The fix: use html2canvas's `onclone` hook to reset those styles,
- * but only on the cloned document it renders from. The live page is
- * untouched, so the container stays invisible to the user the whole
- * time — it's just made "visible" for the split second it exists
- * inside html2canvas's off-DOM clone.
- */
-function fixOffscreenClone(clonedDoc: Document) {
-  const clonedContainer = clonedDoc.getElementById('pdf-export-offscreen-container');
-  if (clonedContainer) {
-    clonedContainer.style.position = 'static';
-    clonedContainer.style.left = '0px';
-    clonedContainer.style.top = '0px';
-    clonedContainer.style.opacity = '1';
-    clonedContainer.style.zIndex = '1';
-  }
-}
-
-/**
  * Export a single page/element to PDF with formatted header and page numbering.
  */
 export async function exportSinglePagePdf(
@@ -59,7 +29,6 @@ export async function exportSinglePagePdf(
       windowWidth: 1280,
       scrollX: 0,
       scrollY: 0,
-      onclone: fixOffscreenClone,
       ignoreElements: (el) =>
         (el.classList && el.classList.contains('no-pdf')) ||
         (el.tagName === 'BUTTON' && (el.textContent?.includes('Edit') || el.textContent?.includes('Upload') || false)),
@@ -175,7 +144,6 @@ export async function exportAllPagesPdf(
         windowWidth: 1280,
         scrollX: 0,
         scrollY: 0,
-        onclone: fixOffscreenClone,
         ignoreElements: (el) =>
           (el.classList && el.classList.contains('no-pdf')) ||
           (el.tagName === 'BUTTON' && (el.textContent?.includes('Edit') || el.textContent?.includes('Upload') || false)),
@@ -337,7 +305,6 @@ export async function exportAllPagesPpt(
           windowWidth: 1280,
           scrollX: 0,
           scrollY: 0,
-          onclone: fixOffscreenClone,
           ignoreElements: (el) =>
             (el.classList && el.classList.contains('no-pdf')) ||
             (el.tagName === 'BUTTON' && (el.textContent?.includes('Edit') || el.textContent?.includes('Upload') || false)),

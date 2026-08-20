@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "UploadedSheet": {
+      "title": "UploadedSheet",
+      "description": "Metadata for uploaded dataset sheet",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fileName": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "rowCount": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "fileName", "uploadedAt", "rowCount", "totalAmount"]
+    },
+    "SheetRecordChunk": {
+      "title": "SheetRecordChunk",
+      "description": "Chunk of refund records for a sheet",
+      "type": "object",
+      "properties": {
+        "sheetId": { "type": "string" },
+        "chunkIndex": { "type": "number" },
+        "totalChunks": { "type": "number" },
+        "records": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sheetId", "chunkIndex", "records"]
+    },
+    "SystemState": {
+      "title": "SystemState",
+      "description": "Global state pointing to active sheet",
+      "type": "object",
+      "properties": {
+        "activeSheetId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "fileName": { "type": "string" },
+        "rowCount": { "type": "number" }
+      },
+      "required": ["activeSheetId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/uploaded_sheets/{sheetId}": {
+      "schema": "UploadedSheet",
+      "description": "List of uploaded sheets"
+    },
+    "/sheet_records/{chunkId}": {
+      "schema": "SheetRecordChunk",
+      "description": "Records chunks for sheets"
+    },
+    "/system_state/{stateId}": {
+      "schema": "SystemState",
+      "description": "Active state pointer"
+    }
+  }
+}
